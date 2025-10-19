@@ -1,0 +1,30 @@
+[package]
+name = "server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tower = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-log = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
+http = { workspace = true }
+hyper = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+thiserror = { workspace = true }
+common = { path = "../common" }
+runtime = { path = "../runtime" }
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+tower-http = { workspace = true, features = ["trace", "cors", "request-id"] }
+
+[dev-dependencies]
+http-body-util = { workspace = true }

@@ -1,0 +1,37 @@
+[workspace]
+members = [
+    "crates/common",
+    "crates/runtime",
+    "crates/server",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["rsengine contributors"]
+rust-version = "1.75"
+version = "0.1.0"
+
+[workspace.metadata]
+name = "rsengine"
+
+[workspace.dependencies]
+anyhow = "1"
+axum = { version = "0.7", features = ["macros", "tokio", "http1"] }
+http = "1"
+hyper = { version = "1", features = ["http1"] }
+metrics = "0.21"
+metrics-exporter-prometheus = "0.13"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tower = { version = "0.4", features = ["util", "make"] }
+tower-http = { version = "0.5", features = ["trace", "cors", "request-id"] }
+tracing = "0.1"
+tracing-log = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "registry"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+cookie = "0.18"
+http-body-util = "0.1"
