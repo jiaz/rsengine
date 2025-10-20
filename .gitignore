@@ -3,3 +3,5 @@ target/
 
 # JavaScript example artifacts
 examples/react-ssr-stream/node_modules/
+
+examples/react-ssr-stream/dist/
