@@ -3,6 +3,7 @@ members = [
     "crates/common",
     "crates/runtime",
     "crates/server",
+    "xtask",
 ]
 resolver = "2"
 

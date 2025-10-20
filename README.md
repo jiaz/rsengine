@@ -42,6 +42,28 @@ For a richer demo that produces a bundle capable of React 18 streaming SSR, see 
 cargo test
 ```
 
+### Build the React Sample Bundle
+
+```bash
+cargo run -p xtask -- bundle
+```
+
+This helper installs the example's Node dependencies (if needed) and compiles `examples/react-ssr-stream/dist/app.bundle.js`. To rebuild and smoke test the project in one step:
+
+```bash
+cargo run -p xtask -- test
+```
+
+Pass `--install` to either command to force a fresh `npm install`.
+
+### Start the Server with the Sample Bundle
+
+```bash
+cargo run -p xtask -- serve
+```
+
+The command builds the React bundle (installing Node dependencies on first run) and launches `cargo run -p server -- --bundle <path>`. Any arguments after the second `--` are forwarded to the server binary—for example: `cargo run -p xtask -- serve -- --runtime-name demo`. Use `--install` if you need to reinstall Node dependencies before starting the server.
+
 Integration tests exercise the streaming handler directly. Unit tests cover request context parsing and runtime bundle validation.
 
 ## Observability
