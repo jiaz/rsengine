@@ -1,9 +1,7 @@
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::sync::Arc;
 
 use axum::{http::Request, response::Response, routing::get, Router};
-use common::RouteConfig;
 use metrics::{histogram, increment_counter};
-use metrics_exporter_prometheus::PrometheusHandle;
 use runtime::RenderRuntime;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -16,14 +14,7 @@ use tracing::{info_span, Span};
 use crate::handlers;
 
 #[derive(Clone)]
-pub struct AppState(Arc<AppStateInner>);
-
-struct AppStateInner {
-    runtime: Arc<RenderRuntime>,
-    routes: HashMap<String, RouteConfig>,
-    metrics_handle: PrometheusHandle,
-    launched_at: Instant,
-}
+pub struct AppState(Arc<RenderRuntime>);
 
 #[allow(dead_code)]
 fn _assert_app_state_send_sync() {
@@ -40,43 +31,12 @@ fn _assert_router_service(router: Router) {
 }
 
 impl AppState {
-    pub fn new(
-        runtime: RenderRuntime,
-        routes: Vec<RouteConfig>,
-        metrics_handle: PrometheusHandle,
-        launched_at: Instant,
-    ) -> Self {
-        let routes_map = routes
-            .into_iter()
-            .map(|route| (route.id.clone(), route))
-            .collect::<HashMap<_, _>>();
-
-        Self(Arc::new(AppStateInner {
-            runtime: Arc::new(runtime),
-            routes: routes_map,
-            metrics_handle,
-            launched_at,
-        }))
+    pub fn new(runtime: RenderRuntime) -> Self {
+        Self(Arc::new(runtime))
     }
 
     pub fn runtime(&self) -> Arc<RenderRuntime> {
-        Arc::clone(&self.0.runtime)
-    }
-
-    pub fn route(&self, id: &str) -> Option<RouteConfig> {
-        self.0.routes.get(id).cloned()
-    }
-
-    pub fn route_count(&self) -> usize {
-        self.0.routes.len()
-    }
-
-    pub fn metrics_handle(&self) -> PrometheusHandle {
-        self.0.metrics_handle.clone()
-    }
-
-    pub fn launched_at(&self) -> Instant {
-        self.0.launched_at
+        Arc::clone(&self.0)
     }
 }
 
@@ -132,16 +92,12 @@ pub fn build_router(state: AppState) -> Router {
         ))
         .layer(SetRequestIdLayer::new(
             http::header::HeaderName::from_static("x-request-id"),
-            MakeRequestUuid::default(),
+            MakeRequestUuid,
         ))
         .into_inner();
 
     Router::new()
-        .route("/health", get(handlers::health))
-        .route("/ready", get(handlers::readiness))
-        .route("/metrics", get(handlers::metrics))
-        .route("/render/:route_id", get(handlers::render_route))
-        .fallback(handlers::not_found)
+        .route("/stream", get(handlers::stream))
         .layer(service_stack)
         .layer(axum::Extension(state))
 }

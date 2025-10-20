@@ -1,16 +1,19 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    convert::Infallible,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use axum::{
-    extract::Path,
+    body::Body,
     http::{
         header::{self, HeaderValue},
         StatusCode,
     },
-    response::{Html, IntoResponse, Response},
-    Extension, Json,
+    response::IntoResponse,
+    Extension,
 };
-use common::{AppError, ErrorCode, RouteConfig};
-use serde::Serialize;
+use bytes::Bytes;
+use futures_util::stream;
 use tracing::debug;
 
 use crate::{
@@ -19,72 +22,33 @@ use crate::{
     errors::{HandlerResult, HttpError},
 };
 
-#[derive(Serialize)]
-struct HealthPayload {
-    status: &'static str,
-    uptime_seconds: u64,
-}
-
-#[derive(Serialize)]
-struct ReadyPayload {
-    status: &'static str,
-    routes_loaded: usize,
-}
-
-pub async fn health(Extension(state): Extension<AppState>) -> impl IntoResponse {
-    let uptime = state.launched_at().elapsed();
-    Json(HealthPayload {
-        status: "ok",
-        uptime_seconds: uptime.as_secs(),
-    })
-}
-
-pub async fn readiness(Extension(state): Extension<AppState>) -> impl IntoResponse {
-    Json(ReadyPayload {
-        status: "ready",
-        routes_loaded: state.route_count(),
-    })
-}
-
-pub async fn metrics(Extension(state): Extension<AppState>) -> impl IntoResponse {
-    let metrics = state.metrics_handle().render();
-    (
-        StatusCode::OK,
-        [(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static("text/plain; version=0.0.4"),
-        )],
-        metrics,
-    )
-}
-
-pub async fn render_route(
-    Path(route_id): Path<String>,
+pub async fn stream(
     Extension(state): Extension<AppState>,
     RequestContextExtractor(context): RequestContextExtractor,
 ) -> HandlerResult<impl IntoResponse> {
-    let route = state
-        .route(&route_id)
-        .ok_or_else(|| AppError::new(ErrorCode::NotFound, format!("unknown route '{route_id}'")))
-        .map_err(HttpError::from)?;
-
-    debug!(
-        route_id = %route_id,
-        request_id = %context.trace.request_id,
-        "render request received",
-    );
+    debug!(request_id = %context.trace.request_id, "stream request received");
 
     let runtime = state.runtime();
-    let rendered = runtime
-        .render(&route, &context)
+    let chunks = runtime
+        .stream_response(&context)
         .await
         .map_err(HttpError::from)?;
 
-    Ok(Html(rendered))
-}
+    let stream = stream::iter(
+        chunks
+            .into_iter()
+            .map(|chunk| Ok::<Bytes, Infallible>(Bytes::from(chunk))),
+    );
+    let body = Body::from_stream(stream);
 
-pub async fn not_found() -> Response {
-    HttpError::from(AppError::new(ErrorCode::NotFound, "resource not found")).into_response()
+    Ok((
+        StatusCode::OK,
+        [(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/html; charset=utf-8"),
+        )],
+        body,
+    ))
 }
 
 pub fn register_process_metrics() {
@@ -95,11 +59,4 @@ pub fn register_process_metrics() {
             "service" => "rsengine_server",
         );
     }
-}
-
-pub fn default_routes() -> Vec<RouteConfig> {
-    vec![
-        RouteConfig::new("home", "/"),
-        RouteConfig::new("product", "/product/:id"),
-    ]
 }

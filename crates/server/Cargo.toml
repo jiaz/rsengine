@@ -25,6 +25,10 @@ runtime = { path = "../runtime" }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
 tower-http = { workspace = true, features = ["trace", "cors", "request-id"] }
+clap = { workspace = true }
+futures-util = { workspace = true }
+bytes = { workspace = true }
 
 [dev-dependencies]
 http-body-util = { workspace = true }
+tempfile = "3.10"

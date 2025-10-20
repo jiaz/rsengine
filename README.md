@@ -1,12 +1,12 @@
 # rsengine
 
-rsengine is a Rust-based server-side rendering service that pairs an Axum HTTP edge with a pluggable JavaScript runtime. The current milestone delivers the initial HTTP surface, observability scaffolding, and a stub runtime for future V8 integration.
+rsengine is a Rust-based server-side rendering service that pairs an Axum HTTP edge with a pluggable JavaScript runtime. The current milestone focuses on streaming SSR: the server exposes a single `/stream` endpoint and can be pointed at a user-provided JavaScript bundle that defines a `stream` handler.
 
 ## Workspace Layout
 
 - `crates/common`: Shared domain types (`RouteConfig`, `AppError`, request context helpers).
-- `crates/runtime`: Placeholder renderer facade that will later wrap the V8 isolate manager.
-- `crates/server`: Axum HTTP server exposing health, readiness, metrics, and render endpoints.
+- `crates/runtime`: Placeholder renderer facade that validates/loading bundles and emits HTML chunks.
+- `crates/server`: Axum HTTP server exposing the streaming endpoint and wiring telemetry.
 
 ## Getting Started
 
@@ -25,17 +25,16 @@ cargo fetch
 ### Run the Server
 
 ```bash
-cargo run -p server
+cargo run -p server -- --bundle ./examples/hello.bundle.js
 ```
 
-The server listens on `0.0.0.0:3000` by default. Adjust the port via the `PORT` environment variable.
+The `--bundle` flag points to a JavaScript module that exports a `stream` function. The function is not executed yet (the current runtime is a stub), but the bundle is validated and its contents are streamed back as part of the response. The server listens on `0.0.0.0:3000` by default; adjust the port via the `PORT` environment variable.
 
-### Available Endpoints
+For a richer demo that produces a bundle capable of React 18 streaming SSR, see [`examples/react-ssr-stream`](examples/react-ssr-stream/README.md).
 
-- `GET /health` – Basic liveness probe including process uptime.
-- `GET /ready` – Readiness probe reporting loaded routes.
-- `GET /metrics` – Prometheus exposition endpoint.
-- `GET /render/:route_id` – Placeholder render path that currently returns static HTML.
+### Streaming Endpoint
+
+- `GET /stream` – Streams an HTML response that includes request metadata and the referenced bundle contents.
 
 ### Run Tests
 
@@ -43,7 +42,7 @@ The server listens on `0.0.0.0:3000` by default. Adjust the port via the `PORT` 
 cargo test
 ```
 
-Integration tests exercise the handler logic directly to validate health, readiness, and render behaviour. Unit tests cover request context parsing and runtime stubs.
+Integration tests exercise the streaming handler directly. Unit tests cover request context parsing and runtime bundle validation.
 
 ## Observability
 

@@ -1,18 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 /// Controls how a route should be rendered by the runtime.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum RenderMode {
     /// Render synchronously and buffer the full response before sending it to the client.
+    #[default]
     Blocking,
     /// Stream the response as chunks become available from the runtime.
     Streaming,
-}
-
-impl Default for RenderMode {
-    fn default() -> Self {
-        RenderMode::Blocking
-    }
 }
 
 /// Declarative configuration for a renderable route.

@@ -1,20 +1,35 @@
-use std::{net::SocketAddr, time::Instant};
+use std::{net::SocketAddr, path::PathBuf};
 
 use anyhow::{Context, Result};
+use clap::Parser;
 use runtime::{RenderRuntime, RuntimeConfig};
 use server::{app::AppState, build_router, handlers, telemetry};
 
+#[derive(Parser, Debug)]
+#[command(author, version, about = "Rust SSR streaming server")]
+struct Cli {
+    /// Path to the JavaScript bundle that exports a `stream` handler.
+    #[arg(long, value_name = "BUNDLE_PATH")]
+    bundle: PathBuf,
+
+    /// Friendly name used to tag logs and metrics for this runtime.
+    #[arg(long, default_value = "rsengine")]
+    runtime_name: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    telemetry::init_tracing().context("failed to initialise tracing")?;
-    let metrics_handle = telemetry::init_metrics().context("failed to initialise metrics")?;
+    let cli = Cli::parse();
 
-    let runtime = RenderRuntime::new(RuntimeConfig::default());
-    let routes = handlers::default_routes();
-    let launched_at = Instant::now();
+    telemetry::init_tracing().context("failed to initialise tracing")?;
+    let _ = telemetry::init_metrics().context("failed to initialise metrics")?;
+
+    let runtime_config = RuntimeConfig::new(cli.bundle).with_name(cli.runtime_name);
+    let runtime =
+        RenderRuntime::try_new(runtime_config).context("failed to initialise render runtime")?;
     handlers::register_process_metrics();
 
-    let state = AppState::new(runtime, routes, metrics_handle, launched_at);
+    let state = AppState::new(runtime);
     let router = build_router(state);
 
     let addr = bind_address();
