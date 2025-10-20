@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
 };
 
+use async_trait::async_trait;
 use common::{AppError, ErrorCode, RequestContext};
 use serde_json::json;
 use tokio::fs as tokio_fs;
@@ -55,7 +56,14 @@ impl RenderRuntime {
     }
 
     /// Produces HTML fragments that will be streamed to the client.
-    pub async fn stream_response(&self, context: &RequestContext) -> Result<Vec<String>, AppError> {
+    pub async fn stream_response<W>(
+        &self,
+        context: &RequestContext,
+        writer: &mut W,
+    ) -> Result<(), AppError>
+    where
+        W: ResponseWriter,
+    {
         debug!(
             request_id = %context.trace.request_id,
             bundle = %self.config.bundle_path.display(),
@@ -99,7 +107,7 @@ impl RenderRuntime {
                 .with_source(err)
         })?;
 
-        let chunks = vec![
+        let chunks = [
             "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">".to_string(),
             format!("<title>{}</title></head><body>", self.config.name),
             format!(
@@ -112,12 +120,23 @@ impl RenderRuntime {
             ),
             "<section><h2>Bundle Source</h2><pre>".to_string(),
             html_escape::encode_text(&script).to_string(),
-            "</pre></section><script>// stream handler executed inside V8 in future milestones</script>".to_string(),
+            "</pre></section><script>// stream handler executed inside V8 in future milestones</script>"
+                .to_string(),
             "</body></html>".to_string(),
         ];
 
-        Ok(chunks)
+        for chunk in chunks {
+            writer.write(chunk).await?;
+        }
+
+        Ok(())
     }
+}
+/// Abstraction over a streaming sink that receives rendered HTML chunks.
+#[async_trait]
+pub trait ResponseWriter: Send {
+    /// Writes the provided chunk to the underlying sink.
+    async fn write(&mut self, chunk: String) -> Result<(), AppError>;
 }
 
 fn validate_bundle(path: &Path) -> Result<(), AppError> {
@@ -160,6 +179,24 @@ mod tests {
     use http::{HeaderMap, Method};
     use tempfile::NamedTempFile;
 
+    struct CollectingWriter {
+        chunks: Vec<String>,
+    }
+
+    impl CollectingWriter {
+        fn new() -> Self {
+            Self { chunks: Vec::new() }
+        }
+    }
+
+    #[async_trait]
+    impl ResponseWriter for CollectingWriter {
+        async fn write(&mut self, chunk: String) -> Result<(), AppError> {
+            self.chunks.push(chunk);
+            Ok(())
+        }
+    }
+
     #[tokio::test]
     async fn runtime_streams_chunks() {
         let mut bundle = NamedTempFile::new().expect("tmp file");
@@ -173,8 +210,14 @@ mod tests {
 
         let context = RequestContext::from_http_parts(&Method::GET, "/stream", &HeaderMap::new());
 
-        let chunks = runtime.stream_response(&context).await.expect("chunks");
-        assert!(chunks
+        let mut writer = CollectingWriter::new();
+        runtime
+            .stream_response(&context, &mut writer)
+            .await
+            .expect("chunks");
+
+        assert!(writer
+            .chunks
             .iter()
             .any(|chunk| chunk.contains("Streaming SSR response")));
     }
