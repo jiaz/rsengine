@@ -1,2 +1,5 @@
 target/
 **/*.rs.bk
+
+# JavaScript example artifacts
+examples/react-ssr-stream/node_modules/
